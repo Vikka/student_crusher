@@ -1,5 +1,5 @@
-from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try
-from ast import NodeTransformer, parse, unparse
+from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break
+from ast import NodeTransformer, parse, unparse, dump
 
 from helper.report import Report
 
@@ -12,7 +12,8 @@ FUNC_DEF_PENALTY = DEFAULT_PENALTY
 TRY_CLAUSE_PENALTY = DEFAULT_PENALTY
 
 AUTHORIZED_MODULES = {}
-UNAUTHORIZED_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'BaseException',
+AUTHORIZED_BUILTINS = {'print', }
+FORBIDDEN_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'BaseException',
                          'BlockingIOError', 'BrokenPipeError', 'BufferError', 'BytesWarning',
                          'ChildProcessError', 'ConnectionAbortedError', 'ConnectionError',
                          'ConnectionRefusedError', 'ConnectionResetError', 'DeprecationWarning',
@@ -40,7 +41,7 @@ UNAUTHORIZED_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 
                          'getattr', 'globals', 'hasattr', 'hash', 'help', 'hex', 'id', 'input',
                          'int', 'isinstance', 'issubclass', 'iter', 'len', 'license', 'list',
                          'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct',
-                         'open', 'ord', 'pow', 'print', 'property', 'quit', 'range', 'repr',
+                         'open', 'ord', 'pow', 'property', 'quit', 'range', 'repr',
                          'reversed', 'round', 'runfile', 'set', 'setattr', 'slice', 'sorted',
                          'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip'}
 
@@ -49,92 +50,103 @@ def is_authorized(import_: Import | ImportFrom) -> bool:
     """
     Function that checks if the import node is authorized
     """
-    unauthorized_modules = [alias.name for alias in import_.names if
+    forbidden_modules = [alias.name for alias in import_.names if
                             alias.name not in AUTHORIZED_MODULES]
-    return not unauthorized_modules
+    return not forbidden_modules
 
 
 class ASTCleaner(NodeTransformer):
     """
-    AST visitor that deletes unauthorized nodes
+    AST visitor that deletes forbidden nodes
     """
 
     def __init__(self, report: Report):
         self.report = report
 
-        self.unauthorized_imports = list()
-        self.unauthorized_from_imports = list()
-        self.unauthorized_func_call = list()
-        self.unauthorized_method_call = list()
-        self.unauthorized_func_def = list()
-        self.unauthorized_try_clause = 0
+        self.forbidden_imports = list()
+        self.forbidden_from_imports = list()
+        self.forbidden_func_call = list()
+        self.forbidden_method_call = list()
+        self.forbidden_func_def = list()
+        self.forbidden_try_clause = 0
+        self.forbidden_break_statement = 0
         self.score = 0
 
     @staticmethod
-    def _visit_import_generic(node: Import | ImportFrom, unauthorized_import_buffer: list
+    def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
                               ) -> Import | ImportFrom | None:
         if not is_authorized(node):
-            unauthorized_import_buffer.append(node)
+            forbidden_import_buffer.append(node)
             return None
         return node
 
     def visit_Import(self, node: Import) -> Import | None:
-        """AST visitor that deletes unauthorized imports"""
-        return self._visit_import_generic(node, self.unauthorized_imports)
+        """AST visitor that deletes forbidden imports"""
+        return self._visit_import_generic(node, self.forbidden_imports)
 
     def visit_ImportFrom(self, node: ImportFrom) -> ImportFrom | None:
-        """AST visitor that deletes unauthorized imports from"""
-        return self._visit_import_generic(node, self.unauthorized_from_imports)
+        """AST visitor that deletes forbidden imports from"""
+        return self._visit_import_generic(node, self.forbidden_from_imports)
 
     def visit_Call(self, node: Call) -> Call | None:
-        """AST visitor that deletes unauthorized calls"""
-        if isinstance(node.func, Name) and node.func.id in UNAUTHORIZED_BUILTINS:
-            self.unauthorized_func_call.append(node)
+        """AST visitor that deletes forbidden calls"""
+        if isinstance(node.func, Name) and node.func.id in FORBIDDEN_BUILTINS:
+            # self.forbidden_func_call.append(node.func.id)
             return None
         if isinstance(node.func, Attribute):
-            self.unauthorized_method_call.append(node)
+            # self.forbidden_method_call.append(node.func.value.id)
             return None
         self.generic_visit(node)
         return node
 
     def visit_FunctionDef(self, node: FunctionDef) -> FunctionDef | None:
-        """AST visitor that deletes unauthorized functions"""
-        if node.name in UNAUTHORIZED_BUILTINS:
-            self.unauthorized_func_def.append(node.name)
+        """AST visitor that deletes forbidden functions"""
+        if node.name in FORBIDDEN_BUILTINS:
+            self.forbidden_func_def.append(node.name)
             return None
         self.generic_visit(node)
         return node
 
     def visit_Try(self, node: Try) -> Try | None:
-        """AST visitor that deletes unauthorized try clauses"""
-        self.unauthorized_try_clause += 1
+        """AST visitor that deletes forbidden try clauses"""
+        self.forbidden_try_clause += 1
         self.generic_visit(node)
-
         return None
+    
+    # def visit_Break(self, node: Break) -> Break | None:
+    #     """AST visitor that deletes forbidden break statements"""
+    #     self.forbidden_break_statement += 1
+    #     self.score -= 1
+    #     return None
 
     @staticmethod
-    def _fill_report(report: Report, buffer: list, msg: str, penalty: int) -> None:
-        report.add_malus_note(f'{msg} {", ".join(buffer)}', len(buffer) * penalty)
+    def _fill_report(report: Report, buffer: list, msg: str) -> None:
+        report.add_malus_note(f'{msg} {", ".join(buffer)}', len(buffer))
 
     def fill_report(self) -> None:
-        if self.unauthorized_imports:
-            self._fill_report(self.report, self.unauthorized_imports,
-                              'Unauthorized imports:', IMPORT_PENALTY)
-        if self.unauthorized_from_imports:
-            self._fill_report(self.report, self.unauthorized_from_imports,
-                              'Unauthorized imports from:', FROM_IMPORT_PENALTY)
-        if self.unauthorized_func_call:
-            self._fill_report(self.report, self.unauthorized_func_call,
-                              'Unauthorized function calls:', FUNC_CALL_PENALTY)
-        if self.unauthorized_method_call:
-            self._fill_report(self.report, self.unauthorized_method_call,
-                              'Unauthorized method calls:', METHOD_CALL_PENALTY)
-        if self.unauthorized_func_def:
-            self._fill_report(self.report, self.unauthorized_func_def,
-                              'Unauthorized function definitions:', FUNC_DEF_PENALTY)
-        if self.unauthorized_try_clause:
-            self.report.add_malus_note(f'Unauthorized try clauses: {self.unauthorized_try_clause}',
-                                       self.unauthorized_try_clause * TRY_CLAUSE_PENALTY)
+        if self.forbidden_imports:
+            self._fill_report(self.report, self.forbidden_imports,
+                              'Forbidden imports:')
+        if self.forbidden_from_imports:
+            self._fill_report(self.report, self.forbidden_from_imports,
+                              'Forbidden imports from:')
+        if self.forbidden_func_call:
+            self._fill_report(self.report, self.forbidden_func_call,
+                              'Forbidden function calls:')
+        if self.forbidden_method_call:
+            self._fill_report(self.report, self.forbidden_method_call,
+                              'Forbidden method calls:')
+        if self.forbidden_func_def:
+            self._fill_report(self.report, self.forbidden_func_def, 
+                              'Forbidden function definitions:')
+        if self.forbidden_try_clause:
+            self.report.add_malus_note('Forbidden try clauses: '
+                                       f'{self.forbidden_try_clause}',
+                                       self.forbidden_try_clause)
+        if self.forbidden_break_statement:
+            self.report.add_malus_note('Forbidden break statements: '
+                                       f'{self.forbidden_break_statement}',
+                                       self.forbidden_break_statement)
 
 
 def ast_clean(code: str, report: Report) -> tuple[str, Report]:
@@ -143,10 +155,17 @@ def ast_clean(code: str, report: Report) -> tuple[str, Report]:
     """
     try:
         original_node = parse(code)
+        print(dump(original_node, indent=4))
     except Exception as e:
+        report.add_malus_note(f'Parse error: {e}', 1)
         return "", report
     # print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
+    print(dump(cleaned_node, indent=4))
     cleaner.fill_report()
-    return unparse(cleaned_node), report
+    try:
+        return unparse(cleaned_node), report
+    except Exception as e:
+        report.add_malus_note(f'Unparse error: {e}', 1)
+        return "", report
