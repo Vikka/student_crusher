@@ -113,11 +113,11 @@ class ASTCleaner(NodeTransformer):
         self.generic_visit(node)
         return None
     
-    # def visit_Break(self, node: Break) -> Break | None:
-    #     """AST visitor that deletes forbidden break statements"""
-    #     self.forbidden_break_statement += 1
-    #     self.score -= 1
-    #     return None
+    def visit_Break(self, node: Break) -> Break | None:
+        """AST visitor that deletes forbidden break statements"""
+        self.forbidden_break_statement += 1
+        self.score -= 1
+        return None
 
     @staticmethod
     def _fill_report(report: Report, buffer: list, msg: str) -> None:
@@ -155,14 +155,13 @@ def ast_clean(code: str, report: Report) -> tuple[str, Report]:
     """
     try:
         original_node = parse(code)
-        print(dump(original_node, indent=4))
     except Exception as e:
         report.add_malus_note(f'Parse error: {e}', 1)
         return "", report
     # print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
-    print(dump(cleaned_node, indent=4))
+    # print(dump(cleaned_node, indent=4))
     cleaner.fill_report()
     try:
         return unparse(cleaned_node), report

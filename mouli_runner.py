@@ -1,8 +1,12 @@
 import argparse
 import csv
 import importlib.util
-from functools import cache
+import multiprocessing
+import time
+from functools import cache, partial
 from io import StringIO
+from multiprocessing import Pool
+from multiprocessing.pool import ApplyResult
 from pathlib import Path
 from types import ModuleType
 from typing import Sequence, IO
@@ -36,10 +40,11 @@ def extract_module_from_path(name: str, path: Path) -> ModuleType:
     return module
 
 
-def run(moulinette: ModuleType, file: Path) -> Report:
+def run(target: Path, file: Path) -> Report:
     """
     Function that runs the moulinette
     """
+    moulinette = extract_module_from_path('moulinette', target / 'moulinette.py')
     report = Report(file.stem)
 
     new_code, report = ast_clean(file.read_text(), report)
@@ -57,16 +62,33 @@ def run(moulinette: ModuleType, file: Path) -> Report:
 
 
 def run_moulinette_on_folder(target: Path) -> list[Report]:
-    moulinette = extract_module_from_path('moulinette', target / 'moulinette.py')
+    partial_run = partial(run, target)
 
-    reports: list[Report] = list()
-    for file in target.iterdir():
-        if not file.is_file() or file.suffix != '.py' or file.name == 'moulinette.py':
-            continue
+    with Pool(5) as p:
+        reports = []
+        def callback(report: Report):
+            reports.append(report)
 
-        reports.append(run(moulinette, file))
-
+        async_results = [
+            (p.apply_async(partial_run, (file, ), callback=callback), file.stem) for file in target.iterdir()
+            if file.is_file() and file.suffix == '.py' and file.name != 'moulinette.py'
+        ]
+        time.sleep(1)
+    for r, name in async_results:
+        if not r.ready():
+            report = Report(name)
+            report.add_malus_note(f"Timeout", 42_000)
+            reports.append(report)
     return reports
+    #
+    # reports: list[Report] = list()
+    # for file in target.iterdir():
+    #     if not file.is_file() or file.suffix != '.py' or file.name == 'moulinette.py':
+    #         continue
+    #
+    #     reports.append(run(target, file))
+    #
+    # return reports
 
 
 def to_csv(reports: list[Report], output: IO | None = None):
