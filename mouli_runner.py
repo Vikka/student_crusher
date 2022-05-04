@@ -1,11 +1,10 @@
 import argparse
 import csv
 import importlib.util
-import multiprocessing
 import time
 from functools import cache, partial
 from io import StringIO
-from multiprocessing import Pool
+from multiprocessing import Pool, pool
 from multiprocessing.pool import ApplyResult
 from pathlib import Path
 from types import ModuleType
@@ -40,17 +39,10 @@ def extract_module_from_path(name: str, path: Path) -> ModuleType:
     return module
 
 
-def run(target: Path, file: Path) -> Report:
-    """
-    Function that runs the moulinette
-    """
+def p_run(target, new_code, file, report):
     moulinette = extract_module_from_path('moulinette', target / 'moulinette.py')
-    report = Report(file.stem)
-
-    new_code, report = ast_clean(file.read_text(), report)
     spec = importlib.util.spec_from_loader(file.stem, loader=None)
     module = importlib.util.module_from_spec(spec)
-
     try:
         exec(new_code, module.__dict__)
     except Exception as e:
@@ -61,34 +53,41 @@ def run(target: Path, file: Path) -> Report:
     return report
 
 
-def run_moulinette_on_folder(target: Path) -> list[Report]:
-    partial_run = partial(run, target)
+def run(target: Path, file: Path, p: pool.Pool, reports: list[Report]) -> tuple[Report, ApplyResult[Report]]:
+    """
+    Function that runs the moulinette
+    """
+    report = Report(file.stem)
+    new_code, report = ast_clean(file.read_text(), report)
 
+    def callback(report: Report):
+        print(f"{file.stem} done")
+        reports.append(report)
+
+    print(f"{file.stem} started")
+    partial_run = partial(p_run, target, new_code, file, report)
+    async_res = p.apply_async(partial_run, callback=callback)
+    return report, async_res
+
+
+def run_moulinette_on_folder(target: Path) -> list[Report]:
     with Pool(5) as p:
         reports = []
-        def callback(report: Report):
-            reports.append(report)
 
-        async_results = [
-            (p.apply_async(partial_run, (file, ), callback=callback), file.stem) for file in target.iterdir()
+        results = [
+            (run(target, file, p, reports), file.stem) for file in
+            target.iterdir()
             if file.is_file() and file.suffix == '.py' and file.name != 'moulinette.py'
         ]
+        print("Waiting for results...")
         time.sleep(1)
-    for r, name in async_results:
-        if not r.ready():
-            report = Report(name)
-            report.add_malus_note(f"Timeout", 42_000)
+    print("Results received")
+    for r, name in results:
+        if not r[1].ready():
+            report = r[0]
+            report.add_malus_note(f"Timeout")
             reports.append(report)
     return reports
-    #
-    # reports: list[Report] = list()
-    # for file in target.iterdir():
-    #     if not file.is_file() or file.suffix != '.py' or file.name == 'moulinette.py':
-    #         continue
-    #
-    #     reports.append(run(target, file))
-    #
-    # return reports
 
 
 def to_csv(reports: list[Report], output: IO | None = None):
