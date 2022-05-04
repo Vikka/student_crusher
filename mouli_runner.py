@@ -96,8 +96,6 @@ def mouli_runner(args: Sequence[str] | None = None):
     else:
         to_csv(reports)
 
-    return True
-
 
 if __name__ == '__main__':
     mouli_runner()
