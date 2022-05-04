@@ -1,0 +1,14 @@
+==============================================================================
+
+    Rules
+
+==============================================================================
+
+Forbidden python features
+-------------------------
+- imports,
+- from imports,
+- calls of function with builtin names,
+- calls of methods (eg. 'var.method()'),
+- defining functions with builtin names,
+- try clauses,

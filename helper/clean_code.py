@@ -1,11 +1,14 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try
-from ast import NodeTransformer, parse, unparse, dump
+from ast import NodeTransformer, parse, unparse
+
+from helper.report import Report
 
 DEFAULT_PENALTY = 10
 IMPORT_PENALTY = DEFAULT_PENALTY
 FROM_IMPORT_PENALTY = DEFAULT_PENALTY
-BUILTIN_PENALTY = DEFAULT_PENALTY
-FUNCTION_PENALTY = DEFAULT_PENALTY
+FUNC_CALL_PENALTY = DEFAULT_PENALTY
+METHOD_CALL_PENALTY = DEFAULT_PENALTY
+FUNC_DEF_PENALTY = DEFAULT_PENALTY
 TRY_CLAUSE_PENALTY = DEFAULT_PENALTY
 
 AUTHORIZED_MODULES = {}
@@ -56,7 +59,9 @@ class ASTCleaner(NodeTransformer):
     AST visitor that deletes unauthorized nodes
     """
 
-    def __init__(self):
+    def __init__(self, report: Report):
+        self.report = report
+
         self.unauthorized_imports = list()
         self.unauthorized_from_imports = list()
         self.unauthorized_func_call = list()
@@ -65,35 +70,29 @@ class ASTCleaner(NodeTransformer):
         self.unauthorized_try_clause = 0
         self.score = 0
 
-    def _visit_import_generic(
-            self, node: Import | ImportFrom,
-            penalty: int, unauthorized_import_buffer: list
-    ) -> Import | ImportFrom | None:
+    @staticmethod
+    def _visit_import_generic(node: Import | ImportFrom, unauthorized_import_buffer: list
+                              ) -> Import | ImportFrom | None:
         if not is_authorized(node):
             unauthorized_import_buffer.append(node)
-            self.score += penalty
             return None
         return node
 
     def visit_Import(self, node: Import) -> Import | None:
         """AST visitor that deletes unauthorized imports"""
-        return self._visit_import_generic(node, IMPORT_PENALTY,
-                                          self.unauthorized_imports)
+        return self._visit_import_generic(node, self.unauthorized_imports)
 
     def visit_ImportFrom(self, node: ImportFrom) -> ImportFrom | None:
         """AST visitor that deletes unauthorized imports from"""
-        return self._visit_import_generic(node, FROM_IMPORT_PENALTY,
-                                          self.unauthorized_from_imports)
+        return self._visit_import_generic(node, self.unauthorized_from_imports)
 
     def visit_Call(self, node: Call) -> Call | None:
         """AST visitor that deletes unauthorized calls"""
         if isinstance(node.func, Name) and node.func.id in UNAUTHORIZED_BUILTINS:
             self.unauthorized_func_call.append(node)
-            self.score -= BUILTIN_PENALTY
             return None
         if isinstance(node.func, Attribute):
             self.unauthorized_method_call.append(node)
-            self.score -= BUILTIN_PENALTY
             return None
         self.generic_visit(node)
         return node
@@ -102,7 +101,6 @@ class ASTCleaner(NodeTransformer):
         """AST visitor that deletes unauthorized functions"""
         if node.name in UNAUTHORIZED_BUILTINS:
             self.unauthorized_func_def.append(node.name)
-            self.score -= FUNCTION_PENALTY
             return None
         self.generic_visit(node)
         return node
@@ -110,42 +108,45 @@ class ASTCleaner(NodeTransformer):
     def visit_Try(self, node: Try) -> Try | None:
         """AST visitor that deletes unauthorized try clauses"""
         self.unauthorized_try_clause += 1
-        self.score -= TRY_CLAUSE_PENALTY
         self.generic_visit(node)
 
         return None
 
-    def get_analysis(self) -> str:
-        result = list()
+    @staticmethod
+    def _fill_report(report: Report, buffer: list, msg: str, penalty: int) -> None:
+        report.add_malus_note(f'{msg} {", ".join(buffer)}', len(buffer) * penalty)
+
+    def fill_report(self) -> None:
         if self.unauthorized_imports:
-            result.append(f'Unauthorized imports: {", ".join(self.unauthorized_imports)}')
+            self._fill_report(self.report, self.unauthorized_imports,
+                              'Unauthorized imports:', IMPORT_PENALTY)
         if self.unauthorized_from_imports:
-            result.append(
-                f'Unauthorized from imports: {", ".join(self.unauthorized_from_imports)}')
+            self._fill_report(self.report, self.unauthorized_from_imports,
+                              'Unauthorized imports from:', FROM_IMPORT_PENALTY)
         if self.unauthorized_func_call:
-            result.append(
-                f'Unauthorized builtin function calls: {", ".join(self.unauthorized_func_call)}')
+            self._fill_report(self.report, self.unauthorized_func_call,
+                              'Unauthorized function calls:', FUNC_CALL_PENALTY)
         if self.unauthorized_method_call:
-            result.append(
-                f'Unauthorized builtin method calls: {", ".join(self.unauthorized_method_call)}')
+            self._fill_report(self.report, self.unauthorized_method_call,
+                              'Unauthorized method calls:', METHOD_CALL_PENALTY)
         if self.unauthorized_func_def:
-            result.append(
-                f'Unauthorized functions def: {", ".join(self.unauthorized_func_def)}')
+            self._fill_report(self.report, self.unauthorized_func_def,
+                              'Unauthorized function definitions:', FUNC_DEF_PENALTY)
         if self.unauthorized_try_clause:
-            result.append(
-                f'Unauthorized try clauses: {self.unauthorized_try_clause}')
-        return '; '.join(result)
+            self.report.add_malus_note(f'Unauthorized try clauses: {self.unauthorized_try_clause}',
+                                       self.unauthorized_try_clause * TRY_CLAUSE_PENALTY)
 
 
-def ast_clean(code: str) -> tuple[str, int, str]:
+def ast_clean(code: str, report: Report) -> tuple[str, Report]:
     """
     Function that prints the AST of the module
     """
     try:
         original_node = parse(code)
-        # print(dump(original_node, indent=4))
-        cleaner = ASTCleaner()
-        cleaned_node = cleaner.visit(original_node)
     except Exception as e:
-        return "", -142857, 'AST CRASH'
-    return unparse(cleaned_node), cleaner.score, cleaner.get_analysis()
+        return "", report
+    # print(dump(original_node, indent=4))
+    cleaner = ASTCleaner(report)
+    cleaned_node = cleaner.visit(original_node)
+    cleaner.fill_report()
+    return unparse(cleaned_node), report
