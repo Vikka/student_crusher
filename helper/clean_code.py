@@ -365,6 +365,8 @@ class ASTCleaner(NodeTransformer):
              f'Forbidden is not operator: {self.forbidden_is_not_operators}'),
             (self.forbidden_slices,
              f'Forbidden slices: {self.forbidden_slices}'),
+            (self.forbidden_class_definitions,
+             f'Forbidden class definitions: {self.forbidden_class_definitions}'),
         ]
         for counter, msg in counter_analysis:
             if counter:
