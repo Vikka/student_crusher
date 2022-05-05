@@ -99,6 +99,11 @@ class ASTCleaner(NodeTransformer):
         if isinstance(node.func, Attribute):
             self.forbidden_method_calls.append(node.value.id)
             return None
+
+        if node.func.id == 'type' and len(node.args) == 3:
+            self.forbidden_func_calls.append(node.func.id)
+            return None
+
         self.generic_visit(node)
         return node
 
@@ -110,17 +115,17 @@ class ASTCleaner(NodeTransformer):
         self.generic_visit(node)
         return node
 
-    def visit_Try(self, node: Try) -> Try | None:
+    def visit_Try(self, node: Try) -> None:
         """AST visitor that deletes forbidden try clauses"""
         self.forbidden_try_clauses += 1
         return None
 
-    def visit_Break(self, node: Break) -> Break | None:
+    def visit_Break(self, node: Break) -> None:
         """AST visitor that deletes forbidden break statements"""
         self.forbidden_break_statements += 1
         return None
 
-    def visit_Continue(self, node: Continue) -> Continue | None:
+    def visit_Continue(self, node: Continue) -> None:
         """AST visitor that deletes forbidden continue statements"""
         self.forbidden_continue_statements += 1
         return None
@@ -146,42 +151,42 @@ class ASTCleaner(NodeTransformer):
             return None
         return node
 
-    def visit_For(self, node: For) -> For | None:
+    def visit_For(self, node: For) -> None:
         """AST visitor that deletes forbidden for loops"""
         self.forbidden_for_loops += 1
         return None
 
-    def visit_ListComp(self, node: ListComp) -> ListComp | None:
+    def visit_ListComp(self, node: ListComp) -> None:
         """AST visitor that deletes forbidden list comprehensions"""
         self.forbidden_list_comprehensions += 1
         return None
 
-    def visit_DictComp(self, node: DictComp) -> DictComp | None:
+    def visit_DictComp(self, node: DictComp) -> None:
         """AST visitor that deletes forbidden dict comprehensions"""
         self.forbidden_dict_comprehensions += 1
         return None
 
-    def visit_SetComp(self, node: SetComp) -> SetComp | None:
+    def visit_SetComp(self, node: SetComp) -> None:
         """AST visitor that deletes forbidden set comprehensions"""
         self.forbidden_set_comprehensions += 1
         return None
 
-    def visit_GeneratorExp(self, node: GeneratorExp) -> GeneratorExp | None:
+    def visit_GeneratorExp(self, node: GeneratorExp) -> None:
         """AST visitor that deletes forbidden generator expressions"""
         self.forbidden_generator_expressions += 1
         return None
 
-    def visit_Yield(self, node: Yield) -> Yield | None:
+    def visit_Yield(self, node: Yield) ->None:
         """AST visitor that deletes forbidden yield statements"""
         self.forbidden_yield_statements += 1
         return None
 
-    def visit_YieldFrom(self, node: YieldFrom) -> YieldFrom | None:
+    def visit_YieldFrom(self, node: YieldFrom) -> None:
         """AST visitor that deletes forbidden yield from statements"""
         self.forbidden_yield_from_statements += 1
         return None
 
-    def visit_Raise(self, node: Raise) -> Raise | None:
+    def visit_Raise(self, node: Raise) -> None:
         """AST visitor that deletes forbidden raise statements"""
         self.forbidden_raise_statements += 1
         return None
@@ -191,86 +196,76 @@ class ASTCleaner(NodeTransformer):
         report.add_malus_note(f'{msg} {", ".join(set(buffer))}', len(buffer))
 
     def fill_report(self) -> None:
-        if self.forbidden_imports:
-            self._fill_report(self.report, self.forbidden_imports,
-                              'Forbidden imports:')
-        if self.forbidden_from_imports:
-            self._fill_report(self.report, self.forbidden_from_imports,
-                              'Forbidden imports from:')
-        if self.forbidden_func_calls:
-            self._fill_report(self.report, self.forbidden_func_calls,
-                              'Forbidden function calls:')
-        if self.forbidden_method_calls:
-            self._fill_report(self.report, self.forbidden_method_calls,
-                              'Forbidden method calls:')
-        if self.forbidden_func_definitions:
-            self._fill_report(self.report, self.forbidden_func_definitions,
-                              'Forbidden function definitions:')
-        if self.forbidden_try_clauses:
-            self.report.add_malus_note('Forbidden try clauses: '
-                                       f'{self.forbidden_try_clauses}',
-                                       self.forbidden_try_clauses)
-        if self.forbidden_break_statements:
-            self.report.add_malus_note('Forbidden break statements: '
-                                       f'{self.forbidden_break_statements}',
-                                       self.forbidden_break_statements)
-        if self.forbidden_continue_statements:
-            self.report.add_malus_note('Forbidden continue statements: '
-                                       f'{self.forbidden_continue_statements}',
-                                       self.forbidden_continue_statements)
-        if self.forbidden_names:
-            self._fill_report(self.report, self.forbidden_names,
-                              'Forbidden names:')
-        if self.forbidden_for_loops:
-            self.report.add_malus_note('Forbidden for loops: '
-                                       f'{self.forbidden_for_loops}',
-                                       self.forbidden_for_loops)
-        if self.forbidden_list_comprehensions:
-            self.report.add_malus_note('Forbidden list comprehensions: '
-                                       f'{self.forbidden_list_comprehensions}',
-                                       self.forbidden_list_comprehensions)
-        if self.forbidden_dict_comprehensions:
-            self.report.add_malus_note('Forbidden dict comprehensions: '
-                                       f'{self.forbidden_dict_comprehensions}',
-                                       self.forbidden_dict_comprehensions)
-        if self.forbidden_set_comprehensions:
-            self.report.add_malus_note('Forbidden set comprehensions: '
-                                       f'{self.forbidden_set_comprehensions}',
-                                       self.forbidden_set_comprehensions)
-        if self.forbidden_generator_expressions:
-            self.report.add_malus_note('Forbidden generator expressions: '
-                                       f'{self.forbidden_generator_expressions}',
-                                       self.forbidden_generator_expressions)
-        if self.forbidden_yield_statements:
-            self.report.add_malus_note('Forbidden yield statements: '
-                                       f'{self.forbidden_yield_statements}',
-                                       self.forbidden_yield_statements)
-        if self.forbidden_yield_from_statements:
-            self.report.add_malus_note('Forbidden yield from statements: '
-                                       f'{self.forbidden_yield_from_statements}',
-                                       self.forbidden_yield_from_statements)
-        if self.forbidden_raise_statements:
-            self.report.add_malus_note('Forbidden raise statements: '
-                                       f'{self.forbidden_raise_statements}',
-                                       self.forbidden_raise_statements)
+        """Fills the report with the results of the analysis"""
+        buffer_analysis = [
+            (self.forbidden_imports, 'Forbidden imports:'),
+            (self.forbidden_from_imports, 'Forbidden imports from:'),
+            (self.forbidden_func_calls, 'Forbidden function calls:'),
+            (self.forbidden_method_calls, 'Forbidden method calls:'),
+            (self.forbidden_func_definitions, 'Forbidden function definitions:'),
+            (self.forbidden_names, 'Forbidden names:'),
+            (self.forbidden_assignments, 'Forbidden assignments:'),
+        ]
+
+        for buffer, msg in buffer_analysis:
+            if buffer:
+                self._fill_report(self.report, buffer, msg)
+
+        counter_analysis = [
+            (self.forbidden_try_clauses,
+             f'Forbidden try clauses: {self.forbidden_try_clauses}'),
+            (self.forbidden_break_statements,
+             f'Forbidden break statements: {self.forbidden_break_statements}'),
+            (self.forbidden_continue_statements,
+             f'Forbidden continue statements: {self.forbidden_continue_statements}'),
+            (self.forbidden_for_loops,
+             f'Forbidden for loops: {self.forbidden_for_loops}'),
+            (self.forbidden_list_comprehensions,
+             f'Forbidden list comprehensions: {self.forbidden_list_comprehensions}'),
+            (self.forbidden_dict_comprehensions,
+             f'Forbidden dict comprehensions: {self.forbidden_dict_comprehensions}'),
+            (self.forbidden_set_comprehensions,
+             f'Forbidden set comprehensions: {self.forbidden_set_comprehensions}'),
+            (self.forbidden_generator_expressions,
+             f'Forbidden generator expressions: {self.forbidden_generator_expressions}'),
+            (self.forbidden_yield_statements,
+             f'Forbidden yield statements: {self.forbidden_yield_statements}'),
+            (self.forbidden_yield_from_statements,
+             f'Forbiddenf yield from statements: {self.forbidden_yield_from_statements}'),
+            (self.forbidden_raise_statements,
+             f'Forbidden raise statements: {self.forbidden_raise_statements}'),
+            (self.forbidden_assert_statements,
+             f'Forbidden assert statements: {self.forbidden_assert_statements}'),
+            (self.forbidden_while_else_clauses,
+             f'Forbiddenf while else clauses: {self.forbidden_while_else_clauses}'),
+            (self.forbidden_global_statements,
+             f'Forbidden global statements: {self.forbidden_global_statements}'),
+            (self.forbidden_nonlocal_statements,
+             f'Forbidden nonlocal statements: {self.forbidden_nonlocal_statements}'),
+            (self.forbidden_in_statements,
+             f'Forbidden in statements: {self.forbidden_in_statements}'),
+        ]
+        for counter, msg in counter_analysis:
+            if counter:
+                self.report.add_malus_note(msg, counter)
 
 
-def ast_clean(code: str, report: Report) -> tuple[str, Report]:
+def ast_clean(code: str, report: Report) -> tuple[AST | None, Report]:
     """
-    Function that prints the AST of the module
+    Function that return the cleaned code and the report.
     """
     try:
         original_node = parse(code)
     except Exception as e:
         report.add_malus_note(f'Parse error: {e}', 1)
-        return "", report
-    # print(dump(original_node, indent=4))
+        return None, report
+    print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
     print(dump(cleaned_node, indent=4))
     cleaner.fill_report()
     try:
-        return unparse(cleaned_node), report
+        return cleaned_node, report
     except Exception as e:
         report.add_malus_note(f'Unparse error: {e}', 1)
-        return "", report
+        return None, report

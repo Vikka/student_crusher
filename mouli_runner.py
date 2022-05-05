@@ -11,6 +11,7 @@ from types import ModuleType
 from typing import Sequence, IO
 
 from helper.clean_code import ast_clean
+from helper.insert_code import ast_insert
 from helper.report import Report
 
 
@@ -58,14 +59,15 @@ def run(target: Path, file: Path, p: pool.Pool, reports: list[Report]) -> tuple[
     Function that runs the moulinette
     """
     report = Report(file.stem)
-    new_code, report = ast_clean(file.read_text(), report)
+    cleaned_code, report = ast_clean(file.read_text(), report)
+    final_code = ast_insert(cleaned_code) if cleaned_code else None
 
     def callback(report: Report):
         print(f"{file.stem} done")
         reports.append(report)
 
     print(f"{file.stem} started")
-    partial_run = partial(p_run, target, new_code, file, report)
+    partial_run = partial(p_run, target, final_code, file, report)
     async_res = p.apply_async(partial_run, callback=callback)
     return report, async_res
 
