@@ -2,8 +2,7 @@ from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Br
     Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
     Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments, Is, NotIn, IsNot, Slice, \
     Subscript
-from ast import NodeTransformer, parse, unparse, dump
-from typing import Any
+from ast import NodeTransformer, parse
 
 from helper.report import Report
 
@@ -148,7 +147,7 @@ class ASTCleaner(NodeTransformer):
 
     def visit_Name(self, node: Name) -> Name | None:
         """AST visitor that deletes forbidden names"""
-        if node.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES\
+        if node.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES \
                 or node.id.endswith('_'):
             self.forbidden_names.append(node.id)
             return None
