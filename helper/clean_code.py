@@ -1,6 +1,6 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break, Expr, Assign, \
     Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
-    Assert, While, Global, Nonlocal, ClassDef, In, AST
+    Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments
 from ast import NodeTransformer, parse, unparse, dump
 
 from helper.report import Report
@@ -80,7 +80,8 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_global_statements = 0
         self.forbidden_nonlocal_statements = 0
         self.forbidden_class_definitions = 0
-        self.forbidden_in_statements = 0
+        self.forbidden_in_operators = 0
+        self.forbidden_arguments = 0
 
     @staticmethod
     def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
@@ -109,7 +110,7 @@ class ASTCleaner(NodeTransformer):
             return None
 
         if isinstance(node.func, Name) and node.func.id == 'type' and len(node.args) == 3:
-            self.forbidden_func_calls.append(node.func.id)
+            self.forbidden_func_calls.append('3 args form of type')
             return None
 
         self.generic_visit(node)
@@ -241,9 +242,26 @@ class ASTCleaner(NodeTransformer):
         return None
 
     def visit_In(self, node: In) -> None:
-        """AST visitor that deletes forbidden in statements"""
-        self.forbidden_in_statements += 1
+        """AST visitor that deletes forbidden in operators"""
+        self.forbidden_in_operators += 1
         return None
+
+    def visit_arguments(self, node: arguments) -> arguments:
+        """AST visitor that deletes forbidden arguments"""
+        if node.kwonlyargs \
+                or node.kw_defaults \
+                or node.defaults \
+                or node.vararg \
+                or node.kwarg \
+                or node.posonlyargs:
+            self.forbidden_arguments += 1
+            node.kwonlyargs.clear()
+            node.kw_defaults.clear()
+            node.defaults.clear()
+            node.posonlyargs.clear()
+            node.vararg = None
+            node.kwarg = None
+        return node
 
     @staticmethod
     def _fill_report(report: Report, buffer: list, msg: str) -> None:
@@ -296,8 +314,10 @@ class ASTCleaner(NodeTransformer):
              f'Forbidden global statements: {self.forbidden_global_statements}'),
             (self.forbidden_nonlocal_statements,
              f'Forbidden nonlocal statements: {self.forbidden_nonlocal_statements}'),
-            (self.forbidden_in_statements,
-             f'Forbidden in statements: {self.forbidden_in_statements}'),
+            (self.forbidden_in_operators,
+             f'Forbidden in operator: {self.forbidden_in_operators}'),
+            (self.forbidden_arguments,
+             f'Forbidden arguments: {self.forbidden_arguments}'),
         ]
         for counter, msg in counter_analysis:
             if counter:

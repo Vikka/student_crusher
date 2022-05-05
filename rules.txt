@@ -27,3 +27,6 @@ Forbidden python features
 - nonlocal statements,
 - following operators on list: ['+', '+=', '==', '>=', '<=', '>', '<', '!=', '*='],
 - 3 args form of type,
+- class definitions,
+- in operator,
+- positional only arguments, keyword only arguments, keywords defaults arguments, defaults arguments, variadic arguments, variadic keyword arguments,
