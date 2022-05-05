@@ -108,11 +108,13 @@ class ASTCleaner(NodeTransformer):
             self.forbidden_method_calls.append(node.value.id)
             return None
 
-        if node.func.id == 'type' and len(node.args) == 3:
+        if isinstance(node.func, Name) and node.func.id == 'type' and len(node.args) == 3:
             self.forbidden_func_calls.append(node.func.id)
             return None
 
         self.generic_visit(node)
+        if not hasattr(node, 'func'):
+            return None
         return node
 
     def visit_FunctionDef(self, node: FunctionDef) -> FunctionDef | None:
