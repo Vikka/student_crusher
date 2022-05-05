@@ -107,6 +107,8 @@ def to_csv(reports: list[Report], output: IO | None = None):
 
     if isinstance(output, StringIO):
         print(output.getvalue())
+    else:
+        print(f"Report saved in {output.name}")
 
 
 def mouli_runner(args: Sequence[str] | None = None):

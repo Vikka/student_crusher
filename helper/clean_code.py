@@ -1,11 +1,12 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break, Expr, Assign, \
-    Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise
+    Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
+    Assert, While, Global, Nonlocal, ClassDef, In, AST
 from ast import NodeTransformer, parse, unparse, dump
 
 from helper.report import Report
 
 AUTHORIZED_MODULES = set()
-AUTHORIZED_BUILTINS = set()
+AUTHORIZED_BUILTINS_NAMES = {'int', 'list', 'dict', 'bool', 'str', 'float', 'tuple', 'type'}
 FORBIDDEN_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'BaseException',
                       'BlockingIOError', 'BrokenPipeError', 'BufferError', 'BytesWarning',
                       'ChildProcessError', 'ConnectionAbortedError', 'ConnectionError',
@@ -36,8 +37,7 @@ FORBIDDEN_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'Ba
                       'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct',
                       'open', 'ord', 'pow', 'print', 'property', 'quit', 'range', 'repr',
                       'reversed', 'round', 'runfile', 'set', 'setattr', 'slice', 'sorted',
-                      'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip'} \
-                     - AUTHORIZED_BUILTINS
+                      'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip'}
 
 
 def is_authorized(import_: Import | ImportFrom) -> bool:
@@ -74,6 +74,13 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_yield_statements = 0
         self.forbidden_yield_from_statements = 0
         self.forbidden_raise_statements = 0
+        self.forbidden_assignments = list()
+        self.forbidden_assert_statements = 0
+        self.forbidden_while_else_clauses = 0
+        self.forbidden_global_statements = 0
+        self.forbidden_nonlocal_statements = 0
+        self.forbidden_class_definitions = 0
+        self.forbidden_in_statements = 0
 
     @staticmethod
     def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
@@ -93,7 +100,8 @@ class ASTCleaner(NodeTransformer):
 
     def visit_Call(self, node: Call) -> Call | None:
         """AST visitor that deletes forbidden calls"""
-        if isinstance(node.func, Name) and node.func.id in FORBIDDEN_BUILTINS:
+        if isinstance(node.func, Name) \
+                and node.func.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES:
             self.forbidden_func_calls.append(node.func.id)
             return None
         if isinstance(node.func, Attribute):
@@ -139,7 +147,7 @@ class ASTCleaner(NodeTransformer):
 
     def visit_Name(self, node: Name) -> Name | None:
         """AST visitor that deletes forbidden names"""
-        if node.id in FORBIDDEN_BUILTINS:
+        if node.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES:
             self.forbidden_names.append(node.id)
             return None
         self.generic_visit(node)
@@ -149,6 +157,10 @@ class ASTCleaner(NodeTransformer):
         self.generic_visit(node)
         if not hasattr(node, 'value'):
             return None
+        for target in node.targets:
+            if isinstance(target, Name) and target.id in FORBIDDEN_BUILTINS:
+                self.forbidden_assignments.append(target.id)
+                return None
         return node
 
     def visit_For(self, node: For) -> None:
@@ -189,6 +201,46 @@ class ASTCleaner(NodeTransformer):
     def visit_Raise(self, node: Raise) -> None:
         """AST visitor that deletes forbidden raise statements"""
         self.forbidden_raise_statements += 1
+        return None
+
+    def visit_BinOp(self, node: BinOp) -> BinOp | None:
+        """AST visitor that deletes forbidden binary operators"""
+        self.generic_visit(node)
+        if not hasattr(node, 'right') or not hasattr(node, 'left'):
+            return None
+        return node
+
+    def visit_Assert(self, node: Assert) -> None:
+        """AST visitor that deletes forbidden assert statements"""
+        self.forbidden_assert_statements += 1
+        return None
+
+    def visit_While(self, node: While) -> While:
+        """AST visitor that deletes forbidden while statements"""
+        if node.orelse:
+            self.forbidden_while_else_clauses += 1
+            node.orelse.clear()
+        self.generic_visit(node)
+        return node
+
+    def visit_Global(self, node: Global) -> None:
+        """AST visitor that deletes forbidden global statements"""
+        self.forbidden_global_statements += 1
+        return None
+
+    def visit_Nonlocal(self, node: Nonlocal) -> None:
+        """AST visitor that deletes forbidden nonlocal statements"""
+        self.forbidden_nonlocal_statements += 1
+        return None
+
+    def visit_ClassDef(self, node: ClassDef) -> None:
+        """AST visitor that deletes forbidden class definitions"""
+        self.forbidden_class_definitions += 1
+        return None
+
+    def visit_In(self, node: In) -> None:
+        """AST visitor that deletes forbidden in statements"""
+        self.forbidden_in_statements += 1
         return None
 
     @staticmethod
@@ -262,6 +314,7 @@ def ast_clean(code: str, report: Report) -> tuple[AST | None, Report]:
     print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
+    print('=' * 80)
     print(dump(cleaned_node, indent=4))
     cleaner.fill_report()
     try:
