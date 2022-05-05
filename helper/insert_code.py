@@ -17,10 +17,11 @@ class ASTInserter(NodeTransformer):
             args=[node],
             keywords=[])
 
-    # def visit_Name(self, node: Name) -> Name:
-    #     """Rewrites all occurrences of specifics name with a custom subclass _name."""
-    #     if node.id == 'list':
-    #         return Name(id='_list', ctx=Load())
+    def visit_Name(self, node: Name) -> Name:
+        """Rewrites all occurrences of specifics name with a custom subclass _name."""
+        if node.id == 'list':
+            node.id = 'list_'
+        return node
 
 
 def insert_features(cleaned_node):

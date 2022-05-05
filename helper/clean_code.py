@@ -1,8 +1,8 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break, Expr, Assign, \
     Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
     Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments, Is, NotIn, IsNot, Slice, \
-    Subscript
-from ast import NodeTransformer, parse
+    Subscript, Compare
+from ast import NodeTransformer, parse, dump, unparse
 
 from helper.report import Report
 
@@ -222,6 +222,9 @@ class ASTCleaner(NodeTransformer):
             self.forbidden_while_else_clauses += 1
             node.orelse.clear()
         self.generic_visit(node)
+        if not hasattr(node, 'test'):
+            print('FAIL')
+            return None
         return node
 
     def visit_Global(self, node: Global) -> None:
@@ -289,7 +292,14 @@ class ASTCleaner(NodeTransformer):
     def visit_Subscript(self, node: Subscript) -> Subscript | None:
         """AST visitor that deletes forbidden subscripts"""
         self.generic_visit(node)
-        if hasattr(node, 'Slice'):
+        if not hasattr(node, 'slice'):
+            return None
+        return node
+
+    def visit_Compare(self, node: Compare) -> Compare | None:
+        """AST visitor that deletes forbidden comparisons"""
+        self.generic_visit(node)
+        if not hasattr(node, 'left'):
             return None
         return node
 
@@ -370,11 +380,13 @@ def ast_clean(code: str, report: Report) -> tuple[AST | None, Report]:
     except Exception as e:
         report.add_malus_note(f'Parse error: {e}', 1)
         return None, report
-    # print(dump(original_node, indent=4))
+    print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
-    # print('=' * 80)
-    # print(dump(cleaned_node, indent=4))
+    print('=' * 80)
+    print(dump(cleaned_node, indent=4))
+    print('=' * 80)
+    print(unparse(cleaned_node))
     cleaner.fill_report()
     try:
         return cleaned_node, report

@@ -13,7 +13,7 @@ Forbidden python features
 - calls of methods (eg. 'my_list.append()'),
 - try clauses,
 - break and continue statements,
-- variables with builtin names,
+- variables with builtin names or trailing underscore (eg. 'my_var_'),
 - for loop,
 - list comprehensions,
 - dict comprehensions,
@@ -31,3 +31,4 @@ Forbidden python features
 - in and not in operator,
 - is and is not operator,
 - positional only arguments, keyword only arguments, keywords defaults arguments, defaults arguments, variadic arguments, variadic keyword arguments,
+- slices,

@@ -1,5 +1,16 @@
 class list_(list):
 
+    def __init__(self, it):
+        if not it:
+            super().__init__(it)
+            return
+        first = it[0]
+        for i in it[1:-1]:
+            if not isinstance(i, type(first)):
+                raise ValueError("All elements must be of the same type")
+
+        super().__init__(it)
+
     def __add__(self, other):
         raise Exception("Forbidden use of '+'", self, other)
 
