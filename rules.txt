@@ -28,5 +28,6 @@ Forbidden python features
 - following operators on list: ['+', '+=', '==', '>=', '<=', '>', '<', '!=', '*='],
 - 3 args form of type,
 - class definitions,
-- in operator,
+- in and not in operator,
+- is and is not operator,
 - positional only arguments, keyword only arguments, keywords defaults arguments, defaults arguments, variadic arguments, variadic keyword arguments,

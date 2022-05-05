@@ -50,7 +50,10 @@ def p_run(target, new_code, file, report):
         report.add_malus_note(f"Error: {e}", 1)
         return report
 
-    moulinette.run(module, report)
+    try:
+        moulinette.run(module, report)
+    except Exception as e:
+        report.add_note(f"Error: {e}")
     return report
 
 

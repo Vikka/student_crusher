@@ -1,6 +1,7 @@
 class list_(list):
+
     def __add__(self, other):
-        raise Exception("Forbidden use of '+'")
+        raise Exception("Forbidden use of '+'", self, other)
 
     def __iadd__(self, other):
         raise Exception("Forbidden use of '+='")

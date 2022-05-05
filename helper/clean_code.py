@@ -1,7 +1,9 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break, Expr, Assign, \
     Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
-    Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments
+    Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments, Is, NotIn, IsNot, Slice, \
+    Subscript
 from ast import NodeTransformer, parse, unparse, dump
+from typing import Any
 
 from helper.report import Report
 
@@ -26,18 +28,18 @@ FORBIDDEN_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'Ba
                       'UnboundLocalError', 'UnicodeDecodeError', 'UnicodeEncodeError',
                       'UnicodeError', 'UnicodeTranslateError', 'UnicodeWarning', 'UserWarning',
                       'ValueError', 'Warning', 'WindowsError', 'ZeroDivisionError', '_',
-                      '__build_class__', '__debug__', '__doc__', '__import__', '__loader__',
-                      '__name__', '__package__', '__spec__', 'abs', 'aiter', 'all', 'anext',
-                      'any', 'ascii', 'bin', 'bool', 'breakpoint', 'bytearray', 'bytes',
+                      '__build_class__', '__builtins__', '__debug__', '__doc__', '__import__',
+                      '__loader__', '__name__', '__package__', '__spec__', 'abs', 'aiter', 'all',
+                      'anext', 'any', 'ascii', 'bin', 'bool', 'breakpoint', 'bytearray', 'bytes',
                       'callable', 'chr', 'classmethod', 'compile', 'complex', 'copyright',
-                      'credits', 'delattr', 'dict', 'dir', 'divmod', 'enumerate', 'eval',
-                      'exec', 'execfile', 'exit', 'filter', 'float', 'format', 'frozenset',
-                      'getattr', 'globals', 'hasattr', 'hash', 'help', 'hex', 'id', 'input',
-                      'int', 'isinstance', 'issubclass', 'iter', 'len', 'license', 'list',
-                      'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct',
-                      'open', 'ord', 'pow', 'print', 'property', 'quit', 'range', 'repr',
-                      'reversed', 'round', 'runfile', 'set', 'setattr', 'slice', 'sorted',
-                      'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip'}
+                      'credits', 'delattr', 'dict', 'dir', 'divmod', 'enumerate', 'eval', 'exec',
+                      'execfile', 'exit', 'filter', 'float', 'format', 'frozenset', 'getattr',
+                      'globals', 'hasattr', 'hash', 'help', 'hex', 'id', 'input', 'int',
+                      'isinstance', 'issubclass', 'iter', 'len', 'license', 'list', 'locals',
+                      'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct', 'open', 'ord',
+                      'pow', 'print', 'property', 'quit', 'range', 'repr', 'reversed', 'round',
+                      'runfile', 'set', 'setattr', 'slice', 'sorted', 'staticmethod', 'str', 'sum',
+                      'super', 'tuple', 'type', 'vars', 'zip'}
 
 
 def is_authorized(import_: Import | ImportFrom) -> bool:
@@ -82,6 +84,10 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_class_definitions = 0
         self.forbidden_in_operators = 0
         self.forbidden_arguments = 0
+        self.forbidden_attributes = list()
+        self.forbidden_is_operators = 0
+        self.forbidden_is_not_operators = 0
+        self.forbidden_slices = 0
 
     @staticmethod
     def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
@@ -101,14 +107,6 @@ class ASTCleaner(NodeTransformer):
 
     def visit_Call(self, node: Call) -> Call | None:
         """AST visitor that deletes forbidden calls"""
-        if isinstance(node.func, Name) \
-                and node.func.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES:
-            self.forbidden_func_calls.append(node.func.id)
-            return None
-        if isinstance(node.func, Attribute):
-            self.forbidden_method_calls.append(node.value.id)
-            return None
-
         if isinstance(node.func, Name) and node.func.id == 'type' and len(node.args) == 3:
             self.forbidden_func_calls.append('3 args form of type')
             return None
@@ -150,7 +148,8 @@ class ASTCleaner(NodeTransformer):
 
     def visit_Name(self, node: Name) -> Name | None:
         """AST visitor that deletes forbidden names"""
-        if node.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES:
+        if node.id in FORBIDDEN_BUILTINS - AUTHORIZED_BUILTINS_NAMES\
+                or node.id.endswith('_'):
             self.forbidden_names.append(node.id)
             return None
         self.generic_visit(node)
@@ -191,7 +190,7 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_generator_expressions += 1
         return None
 
-    def visit_Yield(self, node: Yield) ->None:
+    def visit_Yield(self, node: Yield) -> None:
         """AST visitor that deletes forbidden yield statements"""
         self.forbidden_yield_statements += 1
         return None
@@ -246,6 +245,11 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_in_operators += 1
         return None
 
+    def visit_NotIn(self, node: NotIn) -> None:
+        """AST visitor that deletes forbidden not in operators"""
+        self.forbidden_not_in_operators += 1
+        return None
+
     def visit_arguments(self, node: arguments) -> arguments:
         """AST visitor that deletes forbidden arguments"""
         if node.kwonlyargs \
@@ -263,6 +267,33 @@ class ASTCleaner(NodeTransformer):
             node.kwarg = None
         return node
 
+    def visit_Attribute(self, node: Attribute) -> None:
+        """AST visitor that deletes forbidden attributes"""
+        self.forbidden_attributes.append(node.attr)
+        return None
+
+    def visit_Is(self, node: Is) -> None:
+        """AST visitor that deletes forbidden is operators"""
+        self.forbidden_is_operators += 1
+        return None
+
+    def visit_IsNot(self, node: IsNot) -> None:
+        """AST visitor that deletes forbidden is not operators"""
+        self.forbidden_is_not_operators += 1
+        return None
+
+    def visit_Slice(self, node: Slice) -> None:
+        """AST visitor that deletes forbidden slices"""
+        self.forbidden_slices += 1
+        return None
+
+    def visit_Subscript(self, node: Subscript) -> Subscript | None:
+        """AST visitor that deletes forbidden subscripts"""
+        self.generic_visit(node)
+        if hasattr(node, 'Slice'):
+            return None
+        return node
+
     @staticmethod
     def _fill_report(report: Report, buffer: list, msg: str) -> None:
         report.add_malus_note(f'{msg} {", ".join(set(buffer))}', len(buffer))
@@ -277,6 +308,7 @@ class ASTCleaner(NodeTransformer):
             (self.forbidden_func_definitions, 'Forbidden function definitions:'),
             (self.forbidden_names, 'Forbidden names:'),
             (self.forbidden_assignments, 'Forbidden assignments:'),
+            (self.forbidden_attributes, 'Forbidden attributes:'),
         ]
 
         for buffer, msg in buffer_analysis:
@@ -318,6 +350,12 @@ class ASTCleaner(NodeTransformer):
              f'Forbidden in operator: {self.forbidden_in_operators}'),
             (self.forbidden_arguments,
              f'Forbidden arguments: {self.forbidden_arguments}'),
+            (self.forbidden_is_operators,
+             f'Forbidden is operator: {self.forbidden_is_operators}'),
+            (self.forbidden_is_not_operators,
+             f'Forbidden is not operator: {self.forbidden_is_not_operators}'),
+            (self.forbidden_slices,
+             f'Forbidden slices: {self.forbidden_slices}'),
         ]
         for counter, msg in counter_analysis:
             if counter:
@@ -333,11 +371,11 @@ def ast_clean(code: str, report: Report) -> tuple[AST | None, Report]:
     except Exception as e:
         report.add_malus_note(f'Parse error: {e}', 1)
         return None, report
-    print(dump(original_node, indent=4))
+    # print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
-    print('=' * 80)
-    print(dump(cleaned_node, indent=4))
+    # print('=' * 80)
+    # print(dump(cleaned_node, indent=4))
     cleaner.fill_report()
     try:
         return cleaned_node, report
