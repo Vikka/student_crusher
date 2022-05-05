@@ -1,4 +1,4 @@
-class _list(list):
+class list_(list):
     def __add__(self, other):
         raise Exception("Forbidden use of '+'")
 

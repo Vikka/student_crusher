@@ -86,7 +86,7 @@ class ASTCleaner(NodeTransformer):
     def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
                               ) -> Import | ImportFrom | None:
         if not is_authorized(node):
-            forbidden_import_buffer.append(node)
+            forbidden_import_buffer.extend([alias.name for alias in node.names])
             return None
         return node
 
@@ -285,13 +285,13 @@ class ASTCleaner(NodeTransformer):
             (self.forbidden_yield_statements,
              f'Forbidden yield statements: {self.forbidden_yield_statements}'),
             (self.forbidden_yield_from_statements,
-             f'Forbiddenf yield from statements: {self.forbidden_yield_from_statements}'),
+             f'Forbidden yield from statements: {self.forbidden_yield_from_statements}'),
             (self.forbidden_raise_statements,
              f'Forbidden raise statements: {self.forbidden_raise_statements}'),
             (self.forbidden_assert_statements,
              f'Forbidden assert statements: {self.forbidden_assert_statements}'),
             (self.forbidden_while_else_clauses,
-             f'Forbiddenf while else clauses: {self.forbidden_while_else_clauses}'),
+             f'Forbidden while else clauses: {self.forbidden_while_else_clauses}'),
             (self.forbidden_global_statements,
              f'Forbidden global statements: {self.forbidden_global_statements}'),
             (self.forbidden_nonlocal_statements,

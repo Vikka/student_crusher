@@ -13,7 +13,7 @@ class ASTInserter(NodeTransformer):
     def visit_List(self, node: List) -> Call:
         """Rewrites all occurrences of a list with a call to the custom subclass _list."""
         return Call(
-            func=Name(id='_list', ctx=Load()),
+            func=Name(id='list_', ctx=Load()),
             args=[node],
             keywords=[])
 
