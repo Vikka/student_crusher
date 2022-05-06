@@ -1,7 +1,7 @@
 from _ast import Import, ImportFrom, Name, Call, FunctionDef, Attribute, Try, Break, Expr, Assign, \
     Continue, For, ListComp, GeneratorExp, DictComp, SetComp, Yield, YieldFrom, Raise, BinOp, \
     Assert, While, Global, Nonlocal, ClassDef, In, AST, arguments, Is, NotIn, IsNot, Slice, \
-    Subscript, Compare
+    Subscript, Compare, Starred
 from ast import NodeTransformer, parse, dump, unparse
 
 from helper.report import Report
@@ -87,6 +87,8 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_is_operators = 0
         self.forbidden_is_not_operators = 0
         self.forbidden_slices = 0
+        self.forbidden_starred_expressions = list()
+        self.forbidden_not_in_operators = 0
 
     @staticmethod
     def _visit_import_generic(node: Import | ImportFrom, forbidden_import_buffer: list
@@ -216,14 +218,13 @@ class ASTCleaner(NodeTransformer):
         self.forbidden_assert_statements += 1
         return None
 
-    def visit_While(self, node: While) -> While:
+    def visit_While(self, node: While) -> While | None:
         """AST visitor that deletes forbidden while statements"""
         if node.orelse:
             self.forbidden_while_else_clauses += 1
             node.orelse.clear()
         self.generic_visit(node)
         if not hasattr(node, 'test'):
-            print('FAIL')
             return None
         return node
 
@@ -303,6 +304,11 @@ class ASTCleaner(NodeTransformer):
             return None
         return node
 
+    def visit_Starred(self, node: Starred) -> None:
+        """AST visitor that deletes forbidden starred expressions"""
+        self.forbidden_starred_expressions += 1
+        return None
+
     @staticmethod
     def _fill_report(report: Report, buffer: list, msg: str) -> None:
         report.add_malus_note(f'{msg} {", ".join(set(buffer))}', len(buffer))
@@ -318,6 +324,7 @@ class ASTCleaner(NodeTransformer):
             (self.forbidden_names, 'Forbidden names:'),
             (self.forbidden_assignments, 'Forbidden assignments:'),
             (self.forbidden_attributes, 'Forbidden attributes:'),
+            (self.forbidden_starred_expressions, 'Forbidden starred expressions:'),
         ]
 
         for buffer, msg in buffer_analysis:
@@ -367,6 +374,8 @@ class ASTCleaner(NodeTransformer):
              f'Forbidden slices: {self.forbidden_slices}'),
             (self.forbidden_class_definitions,
              f'Forbidden class definitions: {self.forbidden_class_definitions}'),
+            (self.forbidden_not_in_operators,
+             f'Forbidden not in operator: {self.forbidden_not_in_operators}'),
         ]
         for counter, msg in counter_analysis:
             if counter:
