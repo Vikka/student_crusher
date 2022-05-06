@@ -2,6 +2,7 @@
 # Student Crusher
 
 This project is a tool the run a "moulinette" on a folder of python file.
+You need python 3.9 or above to run this project.
 
 ## Usage
 
