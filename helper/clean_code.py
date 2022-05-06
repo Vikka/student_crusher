@@ -391,13 +391,13 @@ def ast_clean(code: str, report: Report) -> tuple[AST | None, Report]:
     except Exception as e:
         report.add_malus_note(f'Parse error: {e}', 1)
         return None, report
-    print(dump(original_node, indent=4))
+    # print(dump(original_node, indent=4))
     cleaner = ASTCleaner(report)
     cleaned_node = cleaner.visit(original_node)
-    print('=' * 80)
-    print(dump(cleaned_node, indent=4))
-    print('=' * 80)
-    print(unparse(cleaned_node))
+    # print('=' * 80)
+    # print(dump(cleaned_node, indent=4))
+    # print('=' * 80)
+    # print(unparse(cleaned_node))
     cleaner.fill_report()
     try:
         return cleaned_node, report

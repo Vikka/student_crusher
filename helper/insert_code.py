@@ -12,6 +12,7 @@ class ASTInserter(NodeTransformer):
 
     def visit_List(self, node: List) -> Call:
         """Rewrites all occurrences of a list with a call to the custom subclass _list."""
+        self.generic_visit(node)
         return Call(
             func=Name(id='list_', ctx=Load()),
             args=[node],
@@ -35,13 +36,14 @@ def ast_insert(cleaned_node: AST) -> str:
     """
     Function that return the code with inserted nodes
     """
-    # print(dump(original_node, indent=4))
-    inserter = ASTInserter()
-    augmented_node = insert_features(cleaned_node)
-    final_node = inserter.visit(augmented_node)
-    # print('=' * 80)
     # print(dump(cleaned_node, indent=4))
+    inserter = ASTInserter()
+    augmented_node = inserter.visit(cleaned_node)
+    final_node = insert_features(augmented_node)
+    # print('=' * 80)
+    # print(dump(final_node, indent=4))
     try:
+        # print(unparse(final_node))
         return unparse(final_node)
     except Exception as e:
         print(e)
