@@ -1,3 +1,4 @@
+# This work is a Work In Progress, and provided without any warranty.
 # Student Crusher
 
 This project is a tool the run a "moulinette" on a folder of python file.
