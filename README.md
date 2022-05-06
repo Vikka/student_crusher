@@ -6,7 +6,7 @@ This project is a tool the run a "moulinette" on a folder of python file.
 
 The usage is simple:
 
-```shell
+```txt
 $ python .\mouli_runner.py -h
 usage: mouli_runner.py [-h] [-o OUTPUT] target_folder       
 
@@ -18,7 +18,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
-                        The output file
+                        The output file as a csv file with ';' as separator
 ```
 
 You need to create a folder with a moulinette.py inside, and every other .py files inside will be

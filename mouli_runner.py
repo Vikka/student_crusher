@@ -26,7 +26,8 @@ def parse_args(args: Sequence[str] | None = None) -> tuple[Path, Path | None]:
     parser = argparse.ArgumentParser(description='Run a moulinette to onto a folder')
     parser.add_argument('target_folder', help='A folder with a moulinette.py inside',
                         type=dir_validator)
-    parser.add_argument('-o', '--output', help='The output file', type=Path)
+    parser.add_argument('-o', '--output',
+                        help="The output file as a csv file with ';' as separator", type=Path)
 
     namespace = parser.parse_args(args)
     return namespace.target_folder, namespace.output
