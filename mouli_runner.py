@@ -41,7 +41,7 @@ def extract_module_from_path(name: str, path: Path) -> ModuleType:
     return module
 
 
-def p_run(target, new_code, file, report):
+def run_in_process(target, new_code, file, report):
     moulinette = extract_module_from_path('moulinette', target / 'moulinette.py')
     spec = importlib.util.spec_from_loader(file.stem, loader=None)
     module = importlib.util.module_from_spec(spec)
@@ -71,8 +71,8 @@ def run(target: Path, file: Path, p: pool.Pool, reports: list[Report]) -> tuple[
         reports.append(report)
 
     print(f"{file.stem} started")
-    partial_run = partial(p_run, target, final_code, file, report)
-    async_res = p.apply_async(partial_run, callback=callback)
+    run_in_process_ = partial(run_in_process, target, final_code, file, report)
+    async_res = p.apply_async(run_in_process_, callback=callback)
     return report, async_res
 
 
