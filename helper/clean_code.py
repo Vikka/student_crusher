@@ -7,7 +7,7 @@ from ast import NodeTransformer, parse, dump, unparse
 from helper.report import Report
 
 AUTHORIZED_MODULES = set()
-AUTHORIZED_BUILTINS_NAMES = {'int', 'list', 'dict', 'bool', 'str', 'float', 'tuple', 'type'}
+AUTHORIZED_BUILTINS_NAMES = {'int', 'list', 'dict', 'bool', 'str', 'float', 'tuple', 'type', 'Ellipsis'}
 FORBIDDEN_BUILTINS = {'ArithmeticError', 'AssertionError', 'AttributeError', 'BaseException',
                       'BlockingIOError', 'BrokenPipeError', 'BufferError', 'BytesWarning',
                       'ChildProcessError', 'ConnectionAbortedError', 'ConnectionError',

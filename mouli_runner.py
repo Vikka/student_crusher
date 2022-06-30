@@ -81,8 +81,8 @@ def run_moulinette_on_folder(target: Path) -> list[Report]:
         reports = []
 
         results = [
-            (run(target, file, p, reports), file.stem) for file in
-            target.iterdir()
+            (run(target, file, p, reports), file.stem)
+            for file in target.iterdir()
             if file.is_file() and file.suffix == '.py' and file.name != 'moulinette.py'
         ]
         print("Waiting for results...")
