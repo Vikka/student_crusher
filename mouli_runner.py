@@ -1,11 +1,11 @@
 import argparse
+import collections
 import csv
 import importlib.util
-import time
+import multiprocessing
 from functools import cache, partial
 from io import StringIO
 from multiprocessing import Pool, pool
-from multiprocessing.pool import ApplyResult
 from pathlib import Path
 from types import ModuleType
 from typing import Sequence, IO
@@ -41,7 +41,7 @@ def extract_module_from_path(name: str, path: Path) -> ModuleType:
     return module
 
 
-def run_in_process(target, new_code, file, report):
+def run_in_process(target, new_code, file, report) -> tuple[int, str]:
     moulinette = extract_module_from_path('moulinette', target / 'moulinette.py')
     spec = importlib.util.spec_from_loader(file.stem, loader=None)
     module = importlib.util.module_from_spec(spec)
@@ -55,29 +55,36 @@ def run_in_process(target, new_code, file, report):
         moulinette.run(module, report)
     except Exception as e:
         report.add_note(f"Error: {e}")
+        return report
     return report
 
 
-def run(target: Path, file: Path, p: pool.Pool, reports: list[Report]) -> tuple[Report, ApplyResult[Report]]:
+Results = collections.namedtuple('Results', ['report', 'async_res'])
+
+
+def run(target: Path, file: Path, p: pool.Pool, reports: list[Report]) -> Results:
     """
     Function that runs the moulinette
     """
     report = Report(file.stem)
-    cleaned_code, report = ast_clean(file.read_text(), report)
-    final_code = ast_insert(cleaned_code) if cleaned_code else None
+    try:
+        cleaned_code, report = ast_clean(file.read_text(encoding='utf-8'), report)
+    except UnicodeDecodeError as e:
+        raise ValueError(f"{file.stem} is not a valid python file") from e
+    final_code = ast_insert(cleaned_code) if cleaned_code else ''
 
-    def callback(report: Report):
+    def callback(report_: Report):
         print(f"{file.stem} done")
-        reports.append(report)
+        reports.append(report_)
 
     print(f"{file.stem} started")
     run_in_process_ = partial(run_in_process, target, final_code, file, report)
     async_res = p.apply_async(run_in_process_, callback=callback)
-    return report, async_res
+    return Results(report, async_res)
 
 
 def run_moulinette_on_folder(target: Path) -> list[Report]:
-    with Pool(5) as p:
+    with Pool(50) as p:
         reports = []
 
         results = [
@@ -85,14 +92,15 @@ def run_moulinette_on_folder(target: Path) -> list[Report]:
             for file in target.iterdir()
             if file.is_file() and file.suffix == '.py' and file.name != 'moulinette.py'
         ]
-        print("Waiting for results...")
-        time.sleep(1)
-    print("Results received")
-    for r, name in results:
-        if not r[1].ready():
-            report = r[0]
+    print("Waiting for results...")
+    for r,  name in results:
+        try:
+            r.async_res.get(timeout=1)
+        except multiprocessing.context.TimeoutError:
+            report = r.report
             report.add_malus_note(f"Timeout")
             reports.append(report)
+
     return reports
 
 
@@ -102,7 +110,7 @@ def to_csv(reports: list[Report], output: IO | None = None):
     """
     if output is None:
         output = StringIO()
-    writer = csv.writer(output, delimiter=';')
+    writer = csv.writer(output, delimiter=';', escapechar='\\')
     headers = ['Student', 'Grade', 'Comment']
 
     writer.writerow(headers)
@@ -118,6 +126,10 @@ def to_csv(reports: list[Report], output: IO | None = None):
 def mouli_runner(args: Sequence[str] | None = None):
     target, output = parse_args(args)
     reports = run_moulinette_on_folder(target)
+
+    for report in reports:
+        if report.score == 20:
+            report.add_note("Congratulations !")
 
     if output is not None:
         with output.open('w', newline='') as f:

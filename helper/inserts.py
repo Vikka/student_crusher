@@ -1,11 +1,4 @@
 class list_(list):
-
-    def __init__(self, it):
-        if not it:
-            super().__init__(it)
-            return
-        super().__init__(it)
-
     def __add__(self, other):
         raise Exception("Forbidden use of '+' on a list")
 
